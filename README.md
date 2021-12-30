@@ -7,6 +7,8 @@ KV and thus acts as a very simple Key-Value store. An X-AUTH header is checked f
 
 ## Config
 
+Put these lines (or equivalent) in your wrangler.toml file.
+
 ```toml
 
 name = "kv"
