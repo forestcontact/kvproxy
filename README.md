@@ -8,6 +8,7 @@ KV and thus acts as a very simple Key-Value store. An X-AUTH header is checked f
 ## Config
 
 ```toml
+
 name = "kv"
 type = "rust"
 
@@ -17,12 +18,14 @@ route = "kv.myname.workers.dev"
 zone_id = ""
 
 (insert lines from kv:namespace create)
+
 ```
 
 
 ## Deploy
 
-````sh
+```sh
+
 # build a kv datastore
 wrangler kv:namespace create KV_FROM_RUST
 # offset envvar is used to extend the secret key
@@ -30,14 +33,18 @@ export OFFSET=$(cat /dev/urandom | head -c 24 | base58)
 # first fragment of the value is hard-coded random
 wrangler kv:key put ratherAuthorized N2rBwhuRyscJg5nqkuagiQy2ecmvt6Xxw$OFFSET --namespace-id hexidofnamespace0000000000000000
 wrangler publish
+
 ```
 
+
 ## Example Usage
+
 
 Once the Worker is started using `wrangler dev` and listening on localhost, you
 can put and get value to and from Workers KV:
 
 ```sh
+
 $ curl 'localhost:8787/foo'
 EMPTY
 $ curl -H "X-AUTH: unauthorizedUser" -X POST --data-binary foobar "localhost:8787/foo"
@@ -46,4 +53,5 @@ $ curl -H "X-AUTH: ratherAuthorized" -X POST --data-binary foobar "localhost:878
 OK
 $ curl 'localhost:8787/foo'
 foobar
+
 ```
