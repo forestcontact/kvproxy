@@ -1,7 +1,7 @@
 [package]
-name = "workers-kv-from-rust"
-version = "0.1.0"
-authors = ["Frederic Kettelhoit <kettelhoit@gmail.com>"]
+name = "recordkeeper"
+version = "0.2.0"
+authors = [""]
 edition = "2018"
 
 [lib]
@@ -32,6 +32,7 @@ version = "0.3"
 features = [
     'Request',
     'Response',
+    'Headers',
     'ResponseInit',
     'Url',
     'UrlSearchParams',

@@ -4,9 +4,11 @@ extern crate wasm_bindgen;
 mod utils;
 
 use cfg_if::cfg_if;
-use js_sys::{ArrayBuffer, Object, Reflect, Uint8Array};
+use js_sys::{Object, Reflect};
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::{Request, Response, ResponseInit};
+
+use wasm_bindgen_futures::JsFuture;
 
 cfg_if! {
     // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
@@ -20,28 +22,59 @@ cfg_if! {
 
 #[wasm_bindgen]
 pub async fn handle(kv: WorkersKvJs, req: JsValue) -> Result<Response, JsValue> {
+    let magic_token = String::from("N2rBwhuRyscJg5nqkuagiQy2ecmvt6Xxw") + env!("OFFSET");
     let req: Request = req.dyn_into()?;
     let url = web_sys::Url::new(&req.url())?;
+    let headers = req.headers();
     let pathname = url.pathname();
     let query_params = url.search_params();
     let kv = WorkersKv { kv };
+    let authorized = match headers.get("X-AUTH")? {
+        Some(maybe_authorized) => {
+            let kvalauth = kv.get_text(&maybe_authorized).await?.unwrap_or_default();
+            kvalauth == magic_token
+        }
+        None => false,
+    };
+    let mut init = ResponseInit::new();
     match req.method().as_str() {
         "GET" => {
-            let value = kv.get_text(&pathname).await?.unwrap_or_default();
-            let mut init = ResponseInit::new();
+            let mut resp_value = match kv.get_text(&pathname).await {
+                Ok(val) => val.unwrap_or_default(),
+                Err(_) => String::from("ERROR"),
+            };
+            resp_value = match resp_value.is_empty() {
+                true => String::from("EMPTY"),
+                false => resp_value,
+            };
             init.status(200);
-            Response::new_with_opt_str_and_init(Some(&format!("\"{}\"\n", value)), &init)
+            Response::new_with_opt_str_and_init(Some(&resp_value), &init)
         }
-        "PUT" => {
-            let value = query_params.get("value").unwrap_or_default();
-            // set a TTL of 60 seconds:
-            kv.put_text(&pathname, &value, 60).await?;
-            let mut init = ResponseInit::new();
-            init.status(200);
-            Response::new_with_opt_str_and_init(None, &init)
+        "POST" => {
+            let maybe_param_val = query_params.get("value").unwrap_or_default();
+            let value: String = match maybe_param_val.is_empty() {
+                true => {
+                    let jsblob: JsValue = JsFuture::from(req.text()?).await?;
+                    jsblob.as_string().unwrap_or_default()
+                }
+                false => maybe_param_val.clone(),
+            };
+            // default ttl 10min
+            let ttl = query_params
+                .get("ttl")
+                .unwrap_or_else(|| String::from("600"));
+            let response = if authorized {
+                kv.put_text(&pathname, &value, ttl.parse::<u64>().unwrap())
+                    .await?;
+                init.status(200);
+                Some("OK")
+            } else {
+                init.status(403);
+                Some("AUTH FAILED")
+            };
+            Response::new_with_opt_str_and_init(response, &init)
         }
         _ => {
-            let mut init = ResponseInit::new();
             init.status(400);
             Response::new_with_opt_str_and_init(None, &init)
         }
@@ -82,21 +115,6 @@ impl WorkersKv {
         Ok(())
     }
 
-    async fn put_vec(&self, key: &str, value: &[u8], ttl: u64) -> Result<(), JsValue> {
-        let options = Object::new();
-        Reflect::set(&options, &"expirationTtl".into(), &(ttl as f64).into())?;
-        let typed_array = Uint8Array::new_with_length(value.len() as u32);
-        typed_array.copy_from(value);
-        self.kv
-            .put(
-                JsValue::from_str(key),
-                typed_array.buffer().into(),
-                options.into(),
-            )
-            .await?;
-        Ok(())
-    }
-
     async fn get_text(&self, key: &str) -> Result<Option<String>, JsValue> {
         let options = Object::new();
         Reflect::set(&options, &"type".into(), &"text".into())?;
@@ -105,20 +123,5 @@ impl WorkersKv {
             .get(JsValue::from_str(key), options.into())
             .await?
             .as_string())
-    }
-
-    async fn get_vec(&self, key: &str) -> Result<Option<Vec<u8>>, JsValue> {
-        let options = Object::new();
-        Reflect::set(&options, &"type".into(), &"arrayBuffer".into())?;
-        let value = self.kv.get(JsValue::from_str(key), options.into()).await?;
-        if value.is_null() {
-            Ok(None)
-        } else {
-            let buffer = ArrayBuffer::from(value);
-            let typed_array = Uint8Array::new_with_byte_offset(&buffer, 0);
-            let mut v = vec![0; typed_array.length() as usize];
-            typed_array.copy_to(v.as_mut_slice());
-            Ok(Some(v))
-        }
     }
 }

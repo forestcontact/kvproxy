@@ -1,8 +1,36 @@
 # Use Cloudflare Workers KV from Rust
 
-This repository contains an example Cloudflare Worker which demonstrates how to
-call Workers KV directly from Rust. The Worker forwards `GET` and `PUT` calls to
-KV and thus acts as a very simple Key-Value store.
+This repository contains a basic Cloudflare Worker which demonstrates how to
+call Workers KV directly from Rust. The Worker forwards `GET` and `POST` calls to
+KV and thus acts as a very simple Key-Value store. An X-AUTH header is checked for a matching value, extended at compiletime.
+
+
+## Config
+
+```toml
+name = "kv"
+type = "rust"
+
+account_id = "hexidofaccount000000000000000000"
+workers_dev = true
+route = "kv.myname.workers.dev"
+zone_id = ""
+
+(insert lines from kv:namespace create)
+```
+
+
+## Deploy
+
+````sh
+# build a kv datastore
+wrangler kv:namespace create KV_FROM_RUST
+# offset envvar is used to extend the secret key
+export OFFSET=$(cat /dev/urandom | head -c 24 | base58)
+# first fragment of the value is hard-coded random
+wrangler kv:key put ratherAuthorized N2rBwhuRyscJg5nqkuagiQy2ecmvt6Xxw$OFFSET --namespace-id hexidofnamespace0000000000000000
+wrangler publish
+```
 
 ## Example Usage
 
@@ -11,8 +39,11 @@ can put and get value to and from Workers KV:
 
 ```sh
 $ curl 'localhost:8787/foo'
-""
-$ curl -X PUT 'localhost:8787/foo?value=bar'
+EMPTY
+$ curl -H "X-AUTH: unauthorizedUser" -X POST --data-binary foobar "localhost:8787/foo"
+AUTH FAILED
+$ curl -H "X-AUTH: ratherAuthorized" -X POST --data-binary foobar "localhost:8787/foo"
+OK
 $ curl 'localhost:8787/foo'
-"bar"
+foobar
 ```
