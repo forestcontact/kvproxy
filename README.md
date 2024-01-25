@@ -2,7 +2,7 @@
 
 This repository contains a basic Cloudflare Worker which demonstrates how to
 call Workers KV directly from Rust. The Worker forwards `GET` and `POST` calls to
-KV and thus acts as a very simple Key-Value store. An X-AUTH header is checked for a matching value, extended at compiletime.
+KV and thus acts as a very simple Key-Value store. An `Authorization` header is checked for a matching value, extended at compiletime.
 
 
 ## Config
@@ -47,9 +47,9 @@ can put and get value to and from Workers KV:
 
 $ curl 'localhost:8787/foo'
 EMPTY
-$ curl -H "X-AUTH: unauthorizedUser" -X POST --data-binary foobar "localhost:8787/foo"
+$ curl -H "Authorization: unauthorizedUser" -X POST --data-binary foobar "localhost:8787/foo"
 AUTH FAILED
-$ curl -H "X-AUTH: ratherAuthorized" -X POST --data-binary foobar "localhost:8787/foo"
+$ curl -H "Authorization: ratherAuthorized" -X POST --data-binary foobar "localhost:8787/foo"
 OK
 $ curl 'localhost:8787/foo'
 foobar
