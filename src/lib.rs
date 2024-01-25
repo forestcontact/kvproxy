@@ -19,17 +19,17 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
         }
         None => false,
     };
-    if !authorized {
-        return Response::error("Unauthorized", 400)
-    }
     let req_text = req.text().await?;
     match req.method() {
         worker::Method::Get => {
             let keyname = pathname.strip_prefix("/GET").unwrap_or(pathname);
             let resp_value = kv.get(keyname).text().await?.unwrap_or("EMPTY".to_string());
-            Response::ok(&resp_value)
+            Response::ok(resp_value)
         }
         worker::Method::Post => {
+            if !authorized {
+                return Response::error("Unauthorized", 400)
+            }
             let keyname = pathname.strip_prefix("/SET").unwrap_or(pathname);
             let empty_string = "".to_string();
             let maybe_param_val = query_params.get("value").unwrap_or(&empty_string);
