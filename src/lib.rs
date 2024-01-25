@@ -1,5 +1,5 @@
-use worker::*;
 use std::collections::HashMap;
+use worker::*;
 
 mod utils;
 
@@ -11,7 +11,10 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
     let url = req.url().unwrap();
     let headers = req.headers();
     let pathname = url.path();
-    let query_params = url.query_pairs().into_owned().collect::<HashMap<String,String>>();
+    let query_params = url
+        .query_pairs()
+        .into_owned()
+        .collect::<HashMap<String, String>>();
     let authorized = match headers.get("Authorization")? {
         Some(maybe_authorized) => {
             let kvalauth = kv.get(&maybe_authorized).text().await?.unwrap();
@@ -28,7 +31,7 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
         }
         worker::Method::Post => {
             if !authorized {
-                return Response::error("Unauthorized", 400)
+                return Response::error("Unauthorized", 400);
             }
             let keyname = pathname.strip_prefix("/SET").unwrap_or(pathname);
             let empty_string = "".to_string();
@@ -39,16 +42,13 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
             };
             // default ttl 10min
             let default_ttl = "600".to_string();
-            let ttl = query_params
-                .get("ttl")
-                .unwrap_or(&default_ttl);
+            let ttl = query_params.get("ttl").unwrap_or(&default_ttl);
             kv.put(keyname, value)?
                 .expiration_ttl(ttl.parse::<u64>().ok().unwrap())
-                .execute().await?;
+                .execute()
+                .await?;
             Response::ok("OK")
-            }
-        _ => {
-            Response::error("nada", 403)
         }
+        _ => Response::error("nada", 403),
     }
 }
