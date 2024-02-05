@@ -17,22 +17,19 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
         .collect::<HashMap<String, String>>();
     let authorized = match headers.get("Authorization")? {
         Some(maybe_authorized) => {
-            let kvalauth = kv.get(&maybe_authorized).text().await?.unwrap();
+            let kvalauth = kv.get(&maybe_authorized).text().await?.unwrap_or("EMPTY".to_string());
             kvalauth == magic_token
         }
         None => false,
     };
     let req_text = req.text().await?;
-    match req.method() {
-        worker::Method::Get => {
+    match (authorized, req.method()) {
+        (_, worker::Method::Get) => {
             let keyname = pathname.strip_prefix("/GET").unwrap_or(pathname);
             let resp_value = kv.get(keyname).text().await?.unwrap_or("EMPTY".to_string());
             Response::ok(resp_value)
         }
-        worker::Method::Post => {
-            if !authorized {
-                return Response::error("Unauthorized", 400);
-            }
+        (true, worker::Method::Post) => {
             let keyname = pathname.strip_prefix("/SET").unwrap_or(pathname);
             let empty_string = "".to_string();
             let maybe_param_val = query_params.get("value").unwrap_or(&empty_string);
@@ -49,6 +46,7 @@ pub async fn main(mut req: Request, env: Env, _ctx: worker::Context) -> Result<R
                 .await?;
             Response::ok("OK")
         }
-        _ => Response::error("nada", 403),
+        (false, worker::Method::Post) => Response::error("Unauthorized", 400),
+        (_, _) => Response::error("nada", 403),
     }
 }
